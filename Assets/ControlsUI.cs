@@ -10,6 +10,7 @@ public class ControlsUI : MonoBehaviour
     private void Start()
     {
         closeButton.onClick.AddListener(() => {
+            AchtungGameManager.Instance.StartNewGame();
             Hide();
         });
 

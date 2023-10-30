@@ -22,7 +22,6 @@ public class PlayerSelectUI : MonoBehaviour
     {
         playButton.onClick.AddListener(() => {
             Hide();
-            AchtungGameManager.Instance.PlayerCountSet();
             controlsUI.Show();
         });
 
@@ -80,5 +79,15 @@ public class PlayerSelectUI : MonoBehaviour
     public void Show()
     {
         gameObject.SetActive(true);
+        SetDefaults();
+    }
+    private void SetDefaults()
+    {
+        AchtungGameManager.Instance.SetNumberOfPlayer(2);
+        AchtungGameManager.Instance.SetMaxPoints(10);
+        selectedPlayers.gameObject.SetActive(true);
+        selectedPoints.gameObject.SetActive(true);
+        selectedPlayers.position = twoPlayersButton.transform.position;
+        selectedPoints.position = tenPointsButton.transform.position;
     }
 }

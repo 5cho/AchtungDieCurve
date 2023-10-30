@@ -4,7 +4,7 @@ using UnityEngine;
 using System.Linq;
 using TMPro;
 
-public class Scoreboard : MonoBehaviour
+public class ScoreboardSingleUI : MonoBehaviour
 {
     [SerializeField] private ScoreboardUI scoreboardUI;
     [SerializeField] private Transform template;

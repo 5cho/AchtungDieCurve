@@ -11,7 +11,7 @@ public class AchtungGameManager : MonoBehaviour
     [SerializeField] private GameObject playerPrefab;
     private float boundsX;
     private float boundsY;
-    private float spawnOffset = 2f;
+    private float spawnOffset = 5f;
     private GameState state;
 
     private int numberOfPlayers;
@@ -19,13 +19,11 @@ public class AchtungGameManager : MonoBehaviour
 
     private Dictionary<int, bool> playerAliveDictionary = new Dictionary<int, bool>();
     private Dictionary<int, int> scoreboardDictionary = new Dictionary<int, int>();
-
-    public event EventHandler OnPlayerCountSet;
     private int numberOfPlayersAlive;
 
-    private List<GameObject> listOfSpawnedGameObjects = new List<GameObject>();
+    
 
-    private int maxPoints;
+    private int maxPoints = 10;
     public event EventHandler OnRoundOver;
     public event EventHandler OnGameOver;
     private int pointsForRound;
@@ -49,18 +47,6 @@ public class AchtungGameManager : MonoBehaviour
 
         SetColorsArray();
     }
-    private void Start()
-    {
-        OnPlayerCountSet += AchtungGameManager_OnPlayerCountSet;
-
-        maxPoints = 10;
-    }
-
-    private void AchtungGameManager_OnPlayerCountSet(object sender, EventArgs e)
-    {
-        SetUpNewGame();
-        SetUpScoreboard();
-    }
 
     private void Update()
     {
@@ -71,9 +57,8 @@ public class AchtungGameManager : MonoBehaviour
         }
         if (Input.GetKeyDown(KeyCode.Tab))
         {
-            ClearSpawnedObjectsFromList();
+            MapCleaner.Instance.ClearAllLines();
         }
-
     }
     public float GetBoundX()
     {
@@ -114,13 +99,37 @@ public class AchtungGameManager : MonoBehaviour
             Vector3 randomPosition = new Vector3(UnityEngine.Random.Range(-boundsX + spawnOffset, boundsX - spawnOffset), UnityEngine.Random.Range(-boundsY + spawnOffset, boundsY - spawnOffset), 0f);
             Quaternion randomRotation = Quaternion.Euler(0, 0, UnityEngine.Random.Range(0, 360));
             GameObject playerGameObject = Instantiate(playerPrefab, randomPosition, randomRotation);
-            AddToListOfSpawnedObjects(playerGameObject);
+            MapCleaner.Instance.AddPlayerToMapCleaner(playerGameObject);
             Player player = playerGameObject.GetComponent<Player>();
+            PowerupManager.Instance.AddPlayerToList(player);
             SetupPlayer(player, i);
 
             playerAliveDictionary.Add(i, true);
         }
         numberOfPlayersAlive = numberOfPlayers;
+    }
+    public void PlayerDied(int playerIndex)
+    {
+        numberOfPlayersAlive--;
+
+        playerAliveDictionary[playerIndex] = false;
+        UpdateScoreboard(playerIndex, pointsForRound);
+        pointsForRound++;
+
+        CheckForRoundWinner();
+    }
+    private void CheckForRoundWinner()
+    {
+        if (numberOfPlayersAlive == 1)
+        {
+            foreach (var kvp in playerAliveDictionary)
+            {
+                if (kvp.Value == true)
+                {
+                    DeclareWinner(kvp.Key);
+                }
+            }
+        }
     }
     private void DeclareWinner(int playerIndex)
     {
@@ -139,37 +148,8 @@ public class AchtungGameManager : MonoBehaviour
             }
         }
     }
-    public void PlayerDied(int playerIndex)
-    {
-        numberOfPlayersAlive--;
-
-        playerAliveDictionary[playerIndex] = false;
-        UpdateScoreboard(playerIndex, pointsForRound);
-        pointsForRound++;
-
-        if (numberOfPlayersAlive == 1)
-        {
-            foreach (var kvp in playerAliveDictionary)
-            {
-                if (kvp.Value == true)
-                {
-                    DeclareWinner(kvp.Key);
-                }
-            }
-        }
-    }
-    public void AddToListOfSpawnedObjects(GameObject gameObjectToAdd)
-    {
-        listOfSpawnedGameObjects.Add(gameObjectToAdd);
-    }
-    public void ClearSpawnedObjectsFromList()
-    {
-        foreach(GameObject spawnedObject in listOfSpawnedGameObjects)
-        {
-            Destroy(spawnedObject);
-        }
-        listOfSpawnedGameObjects.Clear();
-    }
+    
+    
     public void SetMaxPoints(int pointsToSet)
     {
         maxPoints = pointsToSet;
@@ -178,10 +158,7 @@ public class AchtungGameManager : MonoBehaviour
     {
         playerAliveDictionary.Clear();
 
-        if(listOfSpawnedGameObjects.Count > 0)
-        {
-            ClearSpawnedObjectsFromList();
-        }
+        MapCleaner.Instance.ClearMap();
         
         SpawnPlayers();
 
@@ -207,8 +184,9 @@ public class AchtungGameManager : MonoBehaviour
     {
         return arrayOfColors[playerIndex];
     }
-    public void PlayerCountSet()
+    public void StartNewGame()
     {
-        OnPlayerCountSet?.Invoke(this, EventArgs.Empty);
+        SetUpNewGame();
+        SetUpScoreboard();
     }
 }

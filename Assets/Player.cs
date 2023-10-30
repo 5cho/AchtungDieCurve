@@ -28,13 +28,39 @@ public class Player : MonoBehaviour
     private int playerIndex;
     private PlayerInputActions inputActions;
     [SerializeField] private SpriteRenderer playerSpriteRenderer;
-
-
-
     
+
+    private float boundsX;
+    private float boundsY;
+
+    private bool isInvulnerable;
+    private float invulnerablePowerupTimer = 0f;
+    private float invulnerablePowerupTimerMax = 5f;
+
+    private float moveSpeedSlowed = 6f;
+    private float moveSpeedNormal = 8f;
+    private float moveSpeedHastened = 10f;
+    private float slowTimer = 0f;
+    private float slowTimerMax = 4f;
+    private float hasteTimer = 0f;
+    private float hasteTimerMax = 4f;
+
+    private bool isSlowed;
+    private bool isHastened;
+
+    private bool isConfused = false;
+    private float confusionTimer = 0f;
+    private float confusionTimerMax = 4f;
+
+
     private void Awake()
     {
         OnIsDrawingChanged += Player_OnIsDrawingChanged;
+    }
+    private void Start()
+    {
+        boundsX = AchtungGameManager.Instance.GetBoundX();
+        boundsY = AchtungGameManager.Instance.GetBoundY();
     }
     
     private void Player_OnIsDrawingChanged(object sender, EventArgs e)
@@ -58,11 +84,18 @@ public class Player : MonoBehaviour
         {
             GetInput();
 
-            HandleTimer();
+            HandleDrawTimer();
         }
-        
-        
-        
+        if (isInvulnerable)
+        {
+            HandleInvulerabilityTimer();
+        }
+        if (isConfused)
+        {
+            HandleConfusionTimer();
+        }
+        HandleMoveSpeedTimers();
+        HandleMoveSpeed();
     }
 
     private void FixedUpdate()
@@ -73,6 +106,10 @@ public class Player : MonoBehaviour
             ApplyRotation();
             HandleBounds();
 
+            if (isInvulnerable)
+            {
+                return;
+            }
             if (isDrawing)
             {
                 HandleLineRenderer();
@@ -108,14 +145,18 @@ public class Player : MonoBehaviour
                 currentEdgeCollider.points = edgePoints.ToArray();
             }
     }
-    private void HandleTimer()
+    private void HandleDrawTimer()
     {
+        if (isInvulnerable)
+        {
+            return;
+        }
         if (isDrawing)
         {
             lineSpawnTimer += Time.deltaTime;
             if (lineSpawnTimer >= lineSpawnTimerMax)
             {
-                lineSpawnTimer = 0f;
+                lineSpawnTimer = UnityEngine.Random.Range(0f, 1f);
                 isDrawing = false;
                 OnIsDrawingChanged?.Invoke(this, EventArgs.Empty);
             }
@@ -131,7 +172,67 @@ public class Player : MonoBehaviour
             }
         }
     }
+    private void HandleInvulerabilityTimer()
+    {
+        invulnerablePowerupTimer += Time.deltaTime;
 
+        if (invulnerablePowerupTimer >= invulnerablePowerupTimerMax)
+        {
+            invulnerablePowerupTimer = 0f;
+            isInvulnerable = false;
+        }
+    }
+    private void HandleMoveSpeedTimers()
+    {
+        if (isSlowed)
+        {
+            slowTimer += Time.deltaTime;
+
+            if(slowTimer >= slowTimerMax)
+            {
+                slowTimer = 0f;
+                isSlowed = false;
+            }
+        }
+        if (isHastened)
+        {
+            hasteTimer += Time.deltaTime;
+
+            if (hasteTimer >= hasteTimerMax) 
+            {
+                hasteTimer = 0f;
+                isHastened = false;
+            }
+        }
+    }
+    private void HandleConfusionTimer()
+    {
+        confusionTimer += Time.deltaTime;
+        if (confusionTimer >= confusionTimerMax)
+        {
+            confusionTimer = 0f;
+            isConfused = false;
+        }
+    }
+    private void HandleMoveSpeed()
+    {
+        if (isHastened && isSlowed)
+        {
+            moveSpeed = moveSpeedNormal;
+        }
+        else if(isSlowed && !isHastened)
+        {
+            moveSpeed = moveSpeedSlowed;
+        }
+        else if (!isSlowed && isHastened)
+        {
+            moveSpeed = moveSpeedHastened;
+        }
+        else if (!isSlowed && !isHastened)
+        {
+            moveSpeed = moveSpeedNormal;
+        }
+    }
     private void GetInput()
     {
         if(playerIndex == 0)
@@ -159,12 +260,19 @@ public class Player : MonoBehaviour
 
     private void ApplyRotation()
     {
-        transform.rotation *= Quaternion.Euler(0, 0, turnSpeed * -horizontalInput);
+        if (isConfused)
+        {
+            transform.rotation *= Quaternion.Euler(0, 0, turnSpeed * horizontalInput);
+        }
+        else
+        {
+            transform.rotation *= Quaternion.Euler(0, 0, turnSpeed * -horizontalInput);
+        }
     }
     private void CreateNewLine()
     {
         currentLine = Instantiate(linePrefab, transform);
-        AchtungGameManager.Instance.AddToListOfSpawnedObjects(currentLine);
+        MapCleaner.Instance.AddToListOfSpawnedLines(currentLine);
         currentLineRenderer = currentLine.GetComponent<LineRenderer>();
         currentLineRenderer.startColor = playerColor;
         currentLineRenderer.endColor = playerColor;
@@ -173,53 +281,50 @@ public class Player : MonoBehaviour
     private void HandleBounds()
     {
         Vector3 currentPosition = transform.position;
-        float boundsX = AchtungGameManager.Instance.GetBoundX();
-        float boundsY = AchtungGameManager.Instance.GetBoundY();
-        if (currentPosition.x >= boundsX + 0.5f)
+        if (currentPosition.x >= boundsX + 0.4f)
         {
             isDrawing = false;
             OnIsDrawingChanged?.Invoke(this, EventArgs.Empty);
-            transform.position = new Vector3(-transform.position.x + 0.5f, transform.position.y, transform.position.z);
+            transform.position = new Vector3(-transform.position.x + 0.3f, transform.position.y, transform.position.z);
             isDrawing = true;
             OnIsDrawingChanged?.Invoke(this, EventArgs.Empty);
         }
-        else if (currentPosition.x <= -boundsX - 0.5f)
+        else if (currentPosition.x <= -boundsX - 0.4f)
         {
             isDrawing = false;
             OnIsDrawingChanged?.Invoke(this, EventArgs.Empty);
-            transform.position = new Vector3(-transform.position.x - 0.5f, transform.position.y, transform.position.z);
+            transform.position = new Vector3(-transform.position.x - 0.3f, transform.position.y, transform.position.z);
             isDrawing = true;
             OnIsDrawingChanged?.Invoke(this, EventArgs.Empty);
         }
-        else if (currentPosition.y >= boundsY + 0.5f)
+        else if (currentPosition.y >= boundsY + 0.4f)
         {
             isDrawing = false;
             OnIsDrawingChanged?.Invoke(this, EventArgs.Empty);
-            transform.position = new Vector3(transform.position.x, -transform.position.y +0.5f, transform.position.z);
+            transform.position = new Vector3(transform.position.x, -transform.position.y +0.3f, transform.position.z);
             isDrawing = true;
             OnIsDrawingChanged?.Invoke(this, EventArgs.Empty);
         }
-        else if (currentPosition.y <= -boundsY - 0.5f)
+        else if (currentPosition.y <= -boundsY - 0.4f)
         {
             isDrawing = false;
             OnIsDrawingChanged?.Invoke(this, EventArgs.Empty);
-            transform.position = new Vector3(transform.position.x, -transform.position.y - 0.5f, transform.position.z);
+            transform.position = new Vector3(transform.position.x, -transform.position.y - 0.3f, transform.position.z);
             isDrawing = true;
             OnIsDrawingChanged?.Invoke(this, EventArgs.Empty);
         }
     }
-    /*private void OnTriggerEnter2D(Collider2D collision)
-    {
-        isAlive = false;
-
-        AchtungGameManager.Instance.PlayerDied(playerIndex);
-    }
-    */
     public void PlayerHit()
     {
-        isAlive = false;
+        if (isDrawing && isAlive)
+        {
+            isAlive = false;
 
-        AchtungGameManager.Instance.PlayerDied(playerIndex);
+            PowerupManager.Instance.RemovePlayerFromList(this);
+
+            AchtungGameManager.Instance.PlayerDied(playerIndex);
+        }
+
     }
     public void SetPlayerColor(Color colorToSet)
     {
@@ -237,7 +342,35 @@ public class Player : MonoBehaviour
     {
         inputActions.Disable();
     }
+    public int GetPlayerIndex()
+    {
+        return playerIndex;
+    }
+    public void InvulnerablePowerupPickedUp()
+    {
+        isInvulnerable = true;
 
-    
+        invulnerablePowerupTimer = 0f;
 
+        if (isDrawing)
+        {
+            isDrawing = false;
+            OnIsDrawingChanged?.Invoke(this, EventArgs.Empty);
+        }      
+    }
+    public void SlowPlayer()
+    {
+        slowTimer = 0f;
+        isSlowed = true;
+    }
+    public void HastenPlayer()
+    {
+        hasteTimer = 0f;
+        isHastened = true;
+    }
+    public void ConfusePlayer()
+    {
+        confusionTimer = 0f;
+        isConfused = true;
+    }
 }
