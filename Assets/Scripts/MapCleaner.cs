@@ -6,20 +6,16 @@ public class MapCleaner : MonoBehaviour
 {
     public static MapCleaner Instance;
 
+    // List for each type of spawned object (players, lines, powerups)
     private List<GameObject> listOfSpawnedLines = new List<GameObject>();
     private List<GameObject> listOfSpawnedPlayers = new List<GameObject>();
     private List<GameObject> listOfSpawnedPowerups = new List<GameObject>();
-
-
-    public void AddToListOfSpawnedLines(GameObject gameObjectToAdd)
-    {
-        listOfSpawnedLines.Add(gameObjectToAdd);
-    }
-
     private void Awake()
     {
         Instance = this;
     }
+
+    // Function used to clear the map before the new game is set up to clear all players, lines and powerups from the map
     public void ClearMap()
     {
         if(listOfSpawnedLines.Count > 0)
@@ -48,6 +44,19 @@ public class MapCleaner : MonoBehaviour
             listOfSpawnedPowerups.Clear();
         }
     }
+
+    // Function used by the ClearMap powerup
+    public void ClearAllLines()
+    {
+        if (listOfSpawnedLines.Count > 0)
+        {
+            foreach (GameObject spawnedObject in listOfSpawnedLines)
+            {
+                Destroy(spawnedObject);
+            }
+            listOfSpawnedLines.Clear();
+        }
+    }
     public void AddPlayerToMapCleaner(GameObject playerGameObject)
     {
         listOfSpawnedPlayers.Add(playerGameObject);
@@ -56,16 +65,9 @@ public class MapCleaner : MonoBehaviour
     {
         listOfSpawnedPowerups.Add(powerupGameObject);
     }
-    public void ClearAllLines()
+    public void AddToListOfSpawnedLines(GameObject gameObjectToAdd)
     {
-        if (listOfSpawnedLines.Count > 0)
-        {
-            foreach (GameObject spawnedObject in listOfSpawnedLines)
-            {               
-                Destroy(spawnedObject);
-            }
-            listOfSpawnedLines.Clear();
-        }
-            
+        listOfSpawnedLines.Add(gameObjectToAdd);
     }
+    
 }

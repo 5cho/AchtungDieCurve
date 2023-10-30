@@ -7,9 +7,12 @@ using System;
 
 public class ScoreboardUI : MonoBehaviour
 {
+    // Buttons
+    [Header("Buttons")]
     [SerializeField] private Button mainMenuButton;
     [SerializeField] private Button nextRoundButton;
 
+    // Events
     public event EventHandler OnScoreboardShown;
 
     private void Start()
@@ -17,12 +20,14 @@ public class ScoreboardUI : MonoBehaviour
         AchtungGameManager.Instance.OnRoundOver += Instance_OnRoundOver;
         AchtungGameManager.Instance.OnGameOver += Instance_OnGameOver;
 
+        // On main menu button pressed load the game from scratch
         mainMenuButton.onClick.AddListener(() => {
             SceneManager.LoadScene(0);
         });
 
+        // On next round button pressed start the next round
         nextRoundButton.onClick.AddListener(() => {
-            AchtungGameManager.Instance.SetUpNewGame();
+            AchtungGameManager.Instance.SetUpNewRound();
 
             Hide();
         });
@@ -34,8 +39,12 @@ public class ScoreboardUI : MonoBehaviour
     {
         Show();
 
+        // Hide the next round button because the game is over
         nextRoundButton.gameObject.SetActive(false);
-        mainMenuButton.gameObject.SetActive(true);
+
+        // Set the position of the button to the middle of the screen
+        RectTransform mainMenuButtonRectTransform = mainMenuButton.gameObject.GetComponent<RectTransform>();
+        mainMenuButtonRectTransform.anchoredPosition = new Vector2(0, mainMenuButtonRectTransform.anchoredPosition.y);
 
         OnScoreboardShown?.Invoke(this, EventArgs.Empty);
     }
@@ -43,9 +52,6 @@ public class ScoreboardUI : MonoBehaviour
     private void Instance_OnRoundOver(object sender, System.EventArgs e)
     {
         Show();
-
-        mainMenuButton.gameObject.SetActive(false);
-        nextRoundButton.gameObject.SetActive(true);
 
         OnScoreboardShown?.Invoke(this, EventArgs.Empty);
     }

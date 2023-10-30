@@ -6,7 +6,9 @@ using TMPro;
 
 public class ScoreboardSingleUI : MonoBehaviour
 {
+    [Header("Scripts references")]
     [SerializeField] private ScoreboardUI scoreboardUI;
+    [Header("Scoreboard single template")]
     [SerializeField] private Transform template;
 
     private void Start()
@@ -18,8 +20,10 @@ public class ScoreboardSingleUI : MonoBehaviour
     {
         ClearScoreboard();
 
+        // Get the dictionary of players on the scoreboard and set them in descending order
         Dictionary<int, int> scoreboardDictionary = AchtungGameManager.Instance.GetScoreboardDictionary().OrderByDescending(x => x.Value).ToDictionary(x => x.Key, x => x.Value);
 
+        // Spawn and setup a template for each player in the game
         foreach (var pair in scoreboardDictionary)
         {
             Transform scoreboardSingle = Instantiate(template, this.transform);
@@ -31,8 +35,10 @@ public class ScoreboardSingleUI : MonoBehaviour
     }
     public void ClearScoreboard()
     {
+        // Destroy all children in the scoreboard
         foreach(Transform child in transform)
         {
+            // Excluding the template gameobject from being destroyed from the scoreboard
             if(child == template)
             {
                 continue;

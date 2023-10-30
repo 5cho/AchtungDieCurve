@@ -6,17 +6,25 @@ using UnityEngine.UI;
 
 public class MainMenuUI : MonoBehaviour
 {
+    [Header("Script references")]
+    [SerializeField] private PlayerSelectUI playerSelectUI;
+    [Header("Menu buttons")]
     [SerializeField] private Button playButton; 
     [SerializeField] private Button quitButton;
-    [SerializeField] private PlayerSelectUI playerSelectUI;
     
     private void Start()
     {
+        // Play button press hides the MainMenuUI window and shows the PlayerSelectUI window
         playButton.onClick.AddListener(() => {
             Hide();
             playerSelectUI.Show();
         });
 
+        // Quit button press closes the application
+        quitButton.onClick.AddListener(() => {
+            Application.Quit();
+        });
+        
         Show();
     }
     public void Show()

@@ -5,50 +5,69 @@ using System.Linq;
 
 public class Player : MonoBehaviour
 {
+    [Header("Movement")]
     [SerializeField] private float moveSpeed;
     [SerializeField] private float turnSpeed;
+    [Header("Other")]
+    [SerializeField] private GameObject linePrefab;
+    [SerializeField] private SpriteRenderer playerSpriteRenderer;
+    
+    // Input fields
     private float horizontalInput;
 
-    [SerializeField] private GameObject linePrefab;
+    // Current line fields
     private GameObject currentLine;
     private LineRenderer currentLineRenderer;
     private EdgeCollider2D currentEdgeCollider;
     private List<Vector3> linePositionsList = new List<Vector3>();
 
-    private float lineSpawnTimer = 0f;
-    private float lineSpawnTimerMax = 3f; 
-    private float lineSpawnDowntimeTimer = 0f;
-    private float lineSpawnDowntimeTimerMax = 0.5f;
-
-    public event EventHandler OnIsDrawingChanged;
-    private bool isDrawing = false;
-    private bool isAlive = true;
-
-    private Color playerColor;
-    private int playerIndex;
-    private PlayerInputActions inputActions;
-    [SerializeField] private SpriteRenderer playerSpriteRenderer;
-    
-
+    // Level bounds fields
     private float boundsX;
     private float boundsY;
 
+    // Player states and debuffs
+    private bool isDrawing = false;
+    private bool isAlive = true;
     private bool isInvulnerable;
-    private float invulnerablePowerupTimer = 0f;
-    private float invulnerablePowerupTimerMax = 5f;
+    private bool isSlowed;
+    private bool isHastened;
+    private bool isConfused;
 
+    // Player details
+    private Color playerColor;
+    private int playerIndex;
+
+    // Movement speeds
     private float moveSpeedSlowed = 6f;
     private float moveSpeedNormal = 8f;
     private float moveSpeedHastened = 10f;
+
+    // Other
+    public event EventHandler OnIsDrawingChanged;
+
+    private PlayerInputActions inputActions;
+
+    //Timers
+
+    // Line spawn and downtime timers
+    private float lineSpawnTimer = 0f;
+    private float lineSpawnTimerMax = 3f;
+    private float lineSpawnDowntimeTimer = 0f;
+    private float lineSpawnDowntimeTimerMax = 0.5f;
+
+    // Invulnerability powerup timers
+    private float invulnerablePowerupTimer = 0f;
+    private float invulnerablePowerupTimerMax = 5f;
+
+    // Slow timers
     private float slowTimer = 0f;
     private float slowTimerMax = 4f;
+
+    // Haste timers
     private float hasteTimer = 0f;
     private float hasteTimerMax = 4f;
 
-    private bool isSlowed;
-    private bool isHastened;
-
-    private bool isConfused = false;
+    // Confusion timers
     private float confusionTimer = 0f;
     private float confusionTimerMax = 4f;
 
@@ -57,18 +76,75 @@ public class Player : MonoBehaviour
     {
         OnIsDrawingChanged += Player_OnIsDrawingChanged;
     }
+    
+    // On start get the level bounds
     private void Start()
     {
         boundsX = AchtungGameManager.Instance.GetBoundX();
         boundsY = AchtungGameManager.Instance.GetBoundY();
     }
-    
+    private void Update()
+    {
+        // If the player is alive and the game is playing register input and count the draw timers
+        if(isAlive && AchtungGameManager.Instance.GetGameState() == AchtungGameManager.GameState.playing)
+        {
+            GetInput();
+
+            HandleDrawTimer();
+        }
+
+        // If the player is invulnerable count the timer
+        if (isInvulnerable && AchtungGameManager.Instance.GetGameState() == AchtungGameManager.GameState.playing)
+        {
+            HandleInvulerabilityTimer();
+        }
+
+        // If the player confused count the timer
+        if (isConfused && AchtungGameManager.Instance.GetGameState() == AchtungGameManager.GameState.playing)
+        {
+            HandleConfusionTimer();
+        }
+
+        // If the player is slowed or hastened count the coresponding timers
+        HandleMoveSpeedTimers();
+
+        // Apply the movement speed debuffs
+        HandleMoveSpeed();
+    }
+
+    private void FixedUpdate()
+    {
+        // If the player is alive and the game is playing move the player forward and apply rotation based on the input
+        if (isAlive && AchtungGameManager.Instance.GetGameState() == AchtungGameManager.GameState.playing)
+        {
+            MoveForward();
+            ApplyRotation();
+
+            // If the player reaches the edge of the level it is transported to the opposite edge of the map (if PhaseBounds powerup is NOT active player will hit the edge of the level instead)
+            HandleBounds();
+
+            // If the player is invulnerable due to the powerup it will not draw any lines
+            if (isInvulnerable)
+            {
+                return;
+            }
+
+            // If the player is currently drawing the methods will update the line renderer and the edge collider component of the Line
+            if (isDrawing)
+            {
+                HandleLineRenderer();
+                HandleEdgeCollider();
+            }
+        }
+    }
     private void Player_OnIsDrawingChanged(object sender, EventArgs e)
     {
+        // If the player is now drawing create a new line
         if (isDrawing)
         {
             CreateNewLine();
         }
+        // If the player stopped drawing set the line parent to null so it is detached from the player
         else
         {
             if (currentLine != null && currentLine.transform.parent != null)
@@ -78,53 +154,20 @@ public class Player : MonoBehaviour
         }
     }
 
-    private void Update()
-    {
-        if(isAlive && AchtungGameManager.Instance.GetGameState() == AchtungGameManager.GameState.playing)
-        {
-            GetInput();
-
-            HandleDrawTimer();
-        }
-        if (isInvulnerable)
-        {
-            HandleInvulerabilityTimer();
-        }
-        if (isConfused)
-        {
-            HandleConfusionTimer();
-        }
-        HandleMoveSpeedTimers();
-        HandleMoveSpeed();
-    }
-
-    private void FixedUpdate()
-    {
-        if (isAlive && AchtungGameManager.Instance.GetGameState() == AchtungGameManager.GameState.playing)
-        {
-            MoveForward();
-            ApplyRotation();
-            HandleBounds();
-
-            if (isInvulnerable)
-            {
-                return;
-            }
-            if (isDrawing)
-            {
-                HandleLineRenderer();
-                HandleEdgeCollider();
-            }
-        }
-    }
     private void HandleLineRenderer()
     {
         if (currentLineRenderer != null)
         {
+            // Get the number of positions currently in the LineRenderer
             int numberOfPositions = currentLineRenderer.positionCount;
+            
+            // Add 1 to the number of positions
             currentLineRenderer.positionCount++;
+
+            // Set the last position of the line renderer to the position of the player
             currentLineRenderer.SetPosition(numberOfPositions, transform.position);
 
+            // Update the list of LineRenderer positions (for the EdgeCollider)
             Vector3[] linePositionsArray = new Vector3[currentLineRenderer.positionCount];
             currentLineRenderer.GetPositions(linePositionsArray);
             linePositionsList = linePositionsArray.ToList();
@@ -132,19 +175,180 @@ public class Player : MonoBehaviour
     }
     private void HandleEdgeCollider()
     {
-            if(currentEdgeCollider != null)
+        if(currentEdgeCollider != null)
+        {
+            // Create an empty list
+            List<Vector2> edgePoints = new List<Vector2>();
+
+            // Fill the list with the positions from the LineRenderer
+            foreach (Vector3 worldPoint in linePositionsList)
             {
-                List<Vector2> edgePoints = new List<Vector2>();
-
-                foreach (Vector3 worldPoint in linePositionsList)
-                {
-                    Vector2 localPoint = transform.InverseTransformPoint(worldPoint);
-                    edgePoints.Add(localPoint);
-                }
-
-                currentEdgeCollider.points = edgePoints.ToArray();
+                Vector2 localPoint = transform.InverseTransformPoint(worldPoint);
+                edgePoints.Add(localPoint);
             }
+
+            // Set the positions on the EdgeCollider to match the positions of the LineRenderer
+            currentEdgeCollider.points = edgePoints.ToArray();
+        }
     }
+
+    // Set the movement speed of the player (if the player is both slowed and hastened speed is set to a starting value)
+    private void HandleMoveSpeed()
+    {
+        if (isHastened && isSlowed)
+        {
+            moveSpeed = moveSpeedNormal;
+        }
+        else if(isSlowed && !isHastened)
+        {
+            moveSpeed = moveSpeedSlowed;
+        }
+        else if (!isSlowed && isHastened)
+        {
+            moveSpeed = moveSpeedHastened;
+        }
+        else if (!isSlowed && !isHastened)
+        {
+            moveSpeed = moveSpeedNormal;
+        }
+    }
+
+    // Input is registered only on the Action map depending on the player index
+    private void GetInput()
+    {
+        if(playerIndex == 0)
+        {
+            horizontalInput = inputActions.Player1.Movement.ReadValue<float>();
+        }
+        if (playerIndex == 1)
+        {
+            horizontalInput = inputActions.Player2.Movement.ReadValue<float>();
+        }
+        if (playerIndex == 2)
+        {
+            horizontalInput = inputActions.Player3.Movement.ReadValue<float>();
+        }
+        if (playerIndex == 3)
+        {
+            horizontalInput = inputActions.Player4.Movement.ReadValue<float>();
+        }
+    }
+
+    // Moves the player object forward
+    private void MoveForward()
+    {
+        transform.position += transform.right * moveSpeed * Time.deltaTime;
+    }
+
+    // Applies the rotation the player game object based on input
+    private void ApplyRotation()
+    {
+        if (isConfused)
+        {
+            transform.rotation *= Quaternion.Euler(0, 0, turnSpeed * horizontalInput);
+        }
+        else
+        {
+            transform.rotation *= Quaternion.Euler(0, 0, turnSpeed * -horizontalInput);
+        }
+    }
+
+    // Creates a new line, adds it to the list of spawned lines (for cleanup), sets the line color and sets the current linerenderer and edge collider fields
+    private void CreateNewLine()
+    {
+        currentLine = Instantiate(linePrefab, transform);
+        MapCleaner.Instance.AddToListOfSpawnedLines(currentLine);
+        currentLineRenderer = currentLine.GetComponent<LineRenderer>();
+        currentLineRenderer.startColor = playerColor;
+        currentLineRenderer.endColor = playerColor;
+        currentEdgeCollider = currentLine.GetComponent<EdgeCollider2D>();
+    }
+
+    // If the player is at the edge of the level it will be transported to the opposite edge of the level
+    // When the player is transported the current line is dropped and a new one is created on the opposite edge
+    private void HandleBounds()
+    {
+        Vector3 currentPosition = transform.position;
+        if (currentPosition.x >= boundsX + 0.4f)
+        {
+            isDrawing = false;
+            OnIsDrawingChanged?.Invoke(this, EventArgs.Empty);
+            transform.position = new Vector3(-transform.position.x + 0.3f, transform.position.y, transform.position.z);
+            isDrawing = true;
+            OnIsDrawingChanged?.Invoke(this, EventArgs.Empty);
+        }
+        else if (currentPosition.x <= -boundsX - 0.4f)
+        {
+            isDrawing = false;
+            OnIsDrawingChanged?.Invoke(this, EventArgs.Empty);
+            transform.position = new Vector3(-transform.position.x - 0.3f, transform.position.y, transform.position.z);
+            isDrawing = true;
+            OnIsDrawingChanged?.Invoke(this, EventArgs.Empty);
+        }
+        else if (currentPosition.y >= boundsY + 0.4f)
+        {
+            isDrawing = false;
+            OnIsDrawingChanged?.Invoke(this, EventArgs.Empty);
+            transform.position = new Vector3(transform.position.x, -transform.position.y +0.3f, transform.position.z);
+            isDrawing = true;
+            OnIsDrawingChanged?.Invoke(this, EventArgs.Empty);
+        }
+        else if (currentPosition.y <= -boundsY - 0.4f)
+        {
+            isDrawing = false;
+            OnIsDrawingChanged?.Invoke(this, EventArgs.Empty);
+            transform.position = new Vector3(transform.position.x, -transform.position.y - 0.3f, transform.position.z);
+            isDrawing = true;
+            OnIsDrawingChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    // When the players hits something it is set to dead, and is removed from the PowerupManager and the list of alive players in the GameManager
+    public void PlayerHit()
+    {
+        if (isDrawing && isAlive)
+        {
+            isAlive = false;
+
+            PowerupManager.Instance.RemovePlayerFromList(this);
+
+            AchtungGameManager.Instance.PlayerDied(playerIndex);
+        }
+
+    }
+
+    // Player buffs and debuffs
+    // When a buff or debuff is applied the state is set to true and the timer is reset
+    public void InvulnerablePowerupPickedUp()
+    {
+        isInvulnerable = true;
+
+        invulnerablePowerupTimer = 0f;
+
+        // When invulnerable the player is not drawing a line
+        if (isDrawing)
+        {
+            isDrawing = false;
+            OnIsDrawingChanged?.Invoke(this, EventArgs.Empty);
+        }      
+    }
+    public void SlowPlayer()
+    {
+        slowTimer = 0f;
+        isSlowed = true;
+    }
+    public void HastenPlayer()
+    {
+        hasteTimer = 0f;
+        isHastened = true;
+    }
+    public void ConfusePlayer()
+    {
+        confusionTimer = 0f;
+        isConfused = true;
+    }
+
+    // Timers
     private void HandleDrawTimer()
     {
         if (isInvulnerable)
@@ -188,7 +392,7 @@ public class Player : MonoBehaviour
         {
             slowTimer += Time.deltaTime;
 
-            if(slowTimer >= slowTimerMax)
+            if (slowTimer >= slowTimerMax)
             {
                 slowTimer = 0f;
                 isSlowed = false;
@@ -198,7 +402,7 @@ public class Player : MonoBehaviour
         {
             hasteTimer += Time.deltaTime;
 
-            if (hasteTimer >= hasteTimerMax) 
+            if (hasteTimer >= hasteTimerMax)
             {
                 hasteTimer = 0f;
                 isHastened = false;
@@ -214,118 +418,8 @@ public class Player : MonoBehaviour
             isConfused = false;
         }
     }
-    private void HandleMoveSpeed()
-    {
-        if (isHastened && isSlowed)
-        {
-            moveSpeed = moveSpeedNormal;
-        }
-        else if(isSlowed && !isHastened)
-        {
-            moveSpeed = moveSpeedSlowed;
-        }
-        else if (!isSlowed && isHastened)
-        {
-            moveSpeed = moveSpeedHastened;
-        }
-        else if (!isSlowed && !isHastened)
-        {
-            moveSpeed = moveSpeedNormal;
-        }
-    }
-    private void GetInput()
-    {
-        if(playerIndex == 0)
-        {
-            horizontalInput = inputActions.Player1.Movement.ReadValue<float>();
-        }
-        if (playerIndex == 1)
-        {
-            horizontalInput = inputActions.Player2.Movement.ReadValue<float>();
-        }
-        if (playerIndex == 2)
-        {
-            horizontalInput = inputActions.Player3.Movement.ReadValue<float>();
-        }
-        if (playerIndex == 3)
-        {
-            horizontalInput = inputActions.Player4.Movement.ReadValue<float>();
-        }
-    }
 
-    private void MoveForward()
-    {
-        transform.position += transform.right * moveSpeed * Time.deltaTime;
-    }
-
-    private void ApplyRotation()
-    {
-        if (isConfused)
-        {
-            transform.rotation *= Quaternion.Euler(0, 0, turnSpeed * horizontalInput);
-        }
-        else
-        {
-            transform.rotation *= Quaternion.Euler(0, 0, turnSpeed * -horizontalInput);
-        }
-    }
-    private void CreateNewLine()
-    {
-        currentLine = Instantiate(linePrefab, transform);
-        MapCleaner.Instance.AddToListOfSpawnedLines(currentLine);
-        currentLineRenderer = currentLine.GetComponent<LineRenderer>();
-        currentLineRenderer.startColor = playerColor;
-        currentLineRenderer.endColor = playerColor;
-        currentEdgeCollider = currentLine.GetComponent<EdgeCollider2D>();
-    }
-    private void HandleBounds()
-    {
-        Vector3 currentPosition = transform.position;
-        if (currentPosition.x >= boundsX + 0.4f)
-        {
-            isDrawing = false;
-            OnIsDrawingChanged?.Invoke(this, EventArgs.Empty);
-            transform.position = new Vector3(-transform.position.x + 0.3f, transform.position.y, transform.position.z);
-            isDrawing = true;
-            OnIsDrawingChanged?.Invoke(this, EventArgs.Empty);
-        }
-        else if (currentPosition.x <= -boundsX - 0.4f)
-        {
-            isDrawing = false;
-            OnIsDrawingChanged?.Invoke(this, EventArgs.Empty);
-            transform.position = new Vector3(-transform.position.x - 0.3f, transform.position.y, transform.position.z);
-            isDrawing = true;
-            OnIsDrawingChanged?.Invoke(this, EventArgs.Empty);
-        }
-        else if (currentPosition.y >= boundsY + 0.4f)
-        {
-            isDrawing = false;
-            OnIsDrawingChanged?.Invoke(this, EventArgs.Empty);
-            transform.position = new Vector3(transform.position.x, -transform.position.y +0.3f, transform.position.z);
-            isDrawing = true;
-            OnIsDrawingChanged?.Invoke(this, EventArgs.Empty);
-        }
-        else if (currentPosition.y <= -boundsY - 0.4f)
-        {
-            isDrawing = false;
-            OnIsDrawingChanged?.Invoke(this, EventArgs.Empty);
-            transform.position = new Vector3(transform.position.x, -transform.position.y - 0.3f, transform.position.z);
-            isDrawing = true;
-            OnIsDrawingChanged?.Invoke(this, EventArgs.Empty);
-        }
-    }
-    public void PlayerHit()
-    {
-        if (isDrawing && isAlive)
-        {
-            isAlive = false;
-
-            PowerupManager.Instance.RemovePlayerFromList(this);
-
-            AchtungGameManager.Instance.PlayerDied(playerIndex);
-        }
-
-    }
+    // Setters
     public void SetPlayerColor(Color colorToSet)
     {
         playerColor = colorToSet;
@@ -338,39 +432,15 @@ public class Player : MonoBehaviour
         inputActions = new PlayerInputActions();
         inputActions.Enable();
     }
-    private void OnDisable()
-    {
-        inputActions.Disable();
-    }
+
+    // Getters
     public int GetPlayerIndex()
     {
         return playerIndex;
     }
-    public void InvulnerablePowerupPickedUp()
+    // Other 
+    private void OnDisable()
     {
-        isInvulnerable = true;
-
-        invulnerablePowerupTimer = 0f;
-
-        if (isDrawing)
-        {
-            isDrawing = false;
-            OnIsDrawingChanged?.Invoke(this, EventArgs.Empty);
-        }      
-    }
-    public void SlowPlayer()
-    {
-        slowTimer = 0f;
-        isSlowed = true;
-    }
-    public void HastenPlayer()
-    {
-        hasteTimer = 0f;
-        isHastened = true;
-    }
-    public void ConfusePlayer()
-    {
-        confusionTimer = 0f;
-        isConfused = true;
+        inputActions.Disable();
     }
 }
